@@ -384,6 +384,11 @@ app.post('/api/review/generate', async (req, res) => {
 
 // Serve static assets / Vite middleware
 async function setupViteAndListen() {
+  if (process.env.VERCEL) {
+    console.log('[Server] Warm boot on Vercel. Exporting app for serverless handler without listening.');
+    return;
+  }
+
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -397,19 +402,15 @@ async function setupViteAndListen() {
     });
   } else {
     // Standard Production Environment (Cloud Run/Custom VM)
-    // On Vercel, static serving is handled automatically by vercel.json rewriting,
-    // and process.env.VERCEL is set as true, so we don't bind port 3000.
-    if (!process.env.VERCEL) {
-      const distPath = path.join(process.cwd(), 'dist');
-      app.use(express.static(distPath));
-      app.get('*', (req, res) => {
-        res.sendFile(path.join(distPath, 'index.html'));
-      });
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
 
-      app.listen(PORT, '0.0.0.0', () => {
-        console.log(`Server running on http://0.0.0.0:${PORT}`);
-      });
-    }
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://0.0.0.0:${PORT}`);
+    });
   }
 }
 
