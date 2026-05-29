@@ -14,7 +14,10 @@ import {
   Award, 
   X, 
   HelpCircle,
-  RefreshCw
+  RefreshCw,
+  Sparkles,
+  Copy,
+  Check
 } from 'lucide-react';
 import { DailyBoxOffice, MovieDetail } from './types';
 
@@ -47,6 +50,13 @@ export default function App() {
   const [movieDetail, setMovieDetail] = useState<MovieDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState<boolean>(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+
+  // AI Review Generator States
+  const [keywords, setKeywords] = useState<string[]>(['', '', '']);
+  const [generatedReview, setGeneratedReview] = useState<string>('');
+  const [generatingReview, setGeneratingReview] = useState<boolean>(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<boolean>(false);
 
   // Maximum date restriction (Strictly before today, which means max date is yesterday)
   const maxDateString = getYesterdayDateString();
@@ -123,8 +133,70 @@ export default function App() {
   useEffect(() => {
     if (selectedMovieCd) {
       fetchMovieDetail(selectedMovieCd);
+      // Reset review generator when movie changes
+      setKeywords(['', '', '']);
+      setGeneratedReview('');
+      setReviewError(null);
+      setCopied(false);
     }
   }, [selectedMovieCd]);
+
+  const handleKeywordChange = (index: number, value: string) => {
+    const newKeywords = [...keywords];
+    newKeywords[index] = value;
+    setKeywords(newKeywords);
+  };
+
+  const handleGenerateReview = async () => {
+    if (!movieDetail) return;
+
+    const activeKeywords = keywords.filter(k => k.trim());
+    if (activeKeywords.length === 0) {
+      setReviewError('최소 하나의 키워드를 입력해 주세요.');
+      return;
+    }
+
+    setGeneratingReview(true);
+    setReviewError(null);
+    setGeneratedReview('');
+
+    try {
+      const response = await fetch('/api/review/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          movieTitle: movieDetail.movieNm,
+          genre: movieDetail.genres?.map(g => g.genreNm).join(', '),
+          keywords: activeKeywords,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || '감상평 생성에 실패했습니다.');
+      }
+
+      if (data.review) {
+        setGeneratedReview(data.review);
+      } else {
+        throw new Error('감상평 데이터를 제대로 수신하지 못했습니다.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setReviewError(err.message || '감상평 생성 중 오류가 발생했습니다.');
+    } finally {
+      setGeneratingReview(false);
+    }
+  };
+
+  const handleCopyReview = () => {
+    if (!generatedReview) return;
+    navigator.clipboard.writeText(generatedReview);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   // Utility formatting helpers
   const formatNumber = (numStr: string) => {
@@ -150,19 +222,19 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen transition-colors duration-500 font-sans bg-[#f3f4f6] text-slate-900 dark:bg-[#050510] dark:text-slate-200 selection:bg-indigo-500 selection:text-white relative overflow-x-hidden">
+    <div className="min-h-screen transition-colors duration-500 font-sans bg-[#f3f4f6] text-slate-900 dark:bg-[#050510] dark:text-slate-200 selection:bg-sky-500 selection:text-white relative overflow-x-hidden">
       {/* Background radial glows per design specifications */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(99,102,241,0.06)_0%,transparent_50%),radial-gradient(circle_at_80%_70%,rgba(244,63,94,0.06)_0%,transparent_50%)] dark:bg-[radial-gradient(circle_at_20%_30%,#1e1b4b_0%,transparent_50%),radial-gradient(circle_at_80%_70%,#312e81_0%,transparent_50%)] opacity-70 pointer-events-none z-0"></div>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(14,165,233,0.08)_0%,transparent_50%),radial-gradient(circle_at_80%_70%,rgba(244,63,94,0.06)_0%,transparent_50%)] dark:bg-[radial-gradient(circle_at_20%_30%,#082f49_0%,transparent_50%),radial-gradient(circle_at_80%_70%,#0f172a_0%,transparent_50%)] opacity-70 pointer-events-none z-0"></div>
 
       {/* HEADER BAR with glass blur navbar design */}
-      <header className="sticky top-0 z-30 border-b border-white/20 dark:border-white/10 bg-white/25 dark:bg-white/5 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-white/25 dark:border-white/10 bg-white/30 dark:bg-white/5 backdrop-blur-md shadow-xs">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 sm:px-8">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/30">
+            <div className="w-10 h-10 bg-sky-500 rounded-lg flex items-center justify-center shadow-lg shadow-sky-500/30">
               <Film className="w-5.5 h-5.5 text-white" />
             </div>
             <div>
-              <span className="text-2xl font-black tracking-tighter uppercase italic bg-gradient-to-r from-slate-900 to-indigo-950 dark:from-white dark:to-indigo-300 bg-clip-text text-transparent block">
+              <span className="text-2xl font-black tracking-tighter uppercase italic bg-gradient-to-r from-slate-900 to-sky-950 dark:from-white dark:to-sky-300 bg-clip-text text-transparent block">
                 CineScope
               </span>
               <span className="text-[9px] font-mono tracking-widest uppercase text-slate-500 dark:text-slate-400 block -mt-1 font-bold">
@@ -173,7 +245,7 @@ export default function App() {
 
           <div className="flex items-center gap-4">
             {/* Header Date Input with capsule border */}
-            <div className="flex items-center bg-white/40 dark:bg-white/10 border border-slate-300/40 dark:border-white/20 rounded-full px-4 py-1.5 backdrop-blur-xl transition-all shadow-xs hover:border-slate-300 dark:hover:border-white/30">
+            <div className="flex items-center bg-white/40 dark:bg-white/10 border border-slate-300/40 dark:border-white/20 rounded-full px-4 py-1.5 backdrop-blur-xl transition-all shadow-xs hover:border-sky-400/50 dark:hover:border-sky-400/50">
               <span className="text-xs font-bold mr-2 text-slate-500 dark:text-slate-400">조회 일자</span>
               <input
                 id="boxoffice-date-picker"
@@ -193,7 +265,7 @@ export default function App() {
             <button
               id="theme-toggler"
               onClick={() => setIsDarkMode(prev => !prev)}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-300/40 dark:border-white/10 bg-white/50 dark:bg-white/5 shadow-xs hover:scale-105 hover:bg-slate-100 dark:hover:bg-white/10 transition-all text-indigo-600 dark:text-amber-400 cursor-pointer"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-300/40 dark:border-white/10 bg-white/50 dark:bg-white/5 shadow-xs hover:scale-105 hover:bg-slate-100 dark:hover:bg-white/10 transition-all text-sky-500 dark:text-amber-400 cursor-pointer"
               title={isDarkMode ? '라이트 모드로 전환' : '다크 모드로 전환'}
             >
               {isDarkMode ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
@@ -204,7 +276,7 @@ export default function App() {
 
       {/* DASHBOARD HERO / CONTROLS */}
       <main className="relative z-10 mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-8 p-6 sm:p-8 rounded-[2rem] bg-white/30 dark:bg-white/5 border border-white/20 dark:border-white/10 backdrop-blur-2xl">
+        <div className="mb-8 p-6 sm:p-8 rounded-[2rem] bg-white/45 dark:bg-white/5 border border-white/30 dark:border-white/10 backdrop-blur-3xl shadow-[0_8px_32px_0_rgba(14,165,233,0.04)] hover:shadow-[0_8px_32px_0_rgba(14,165,233,0.08)] transition-all duration-300 hover:border-sky-300/20 dark:hover:border-sky-500/10">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
@@ -221,7 +293,7 @@ export default function App() {
               <button
                 id="refresh-btn"
                 onClick={() => fetchBoxOffice(selectedDate)}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold bg-white/80 dark:bg-indigo-500/10 hover:bg-white dark:hover:bg-indigo-500/20 border border-slate-200 dark:border-indigo-500/30 text-indigo-750 dark:text-indigo-400 transition-all cursor-pointer shadow-xs"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold bg-white/80 dark:bg-sky-500/10 hover:bg-white dark:hover:bg-sky-500/20 border border-slate-200 dark:border-sky-500/30 text-sky-600 dark:text-sky-400 hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer shadow-xs"
               >
                 <RefreshCw className="h-3.5 w-3.5" /> 다시 불러오기
               </button>
@@ -232,12 +304,12 @@ export default function App() {
         {/* CONTAINER GRID: LIST & DETAILS SPLIT SCREEN */}
         <div className="grid gap-8 lg:grid-cols-5 items-start">
           {/* Left Panel: Box Office List */}
-          <section className="lg:col-span-3 flex flex-col bg-white/20 dark:bg-white/5 border border-slate-200/60 dark:border-white/10 backdrop-blur-2xl rounded-[2rem] overflow-hidden">
-            <div className="p-6 border-b border-slate-200/50 dark:border-white/10 flex justify-between items-center bg-white/10 dark:bg-white/2">
-              <h3 className="text-xl font-bold uppercase tracking-widest text-indigo-650 dark:text-indigo-400">
+          <section className="lg:col-span-3 flex flex-col bg-white/40 dark:bg-white/5 border border-white/40 dark:border-white/10 backdrop-blur-3xl rounded-[2rem] overflow-hidden shadow-[0_8px_32px_0_rgba(14,165,233,0.04)] dark:shadow-none hover:border-sky-300/30 hover:shadow-[0_12px_40px_0_rgba(14,165,233,0.08)] transition-all duration-300">
+            <div className="p-6 border-b border-white/20 dark:border-white/10 flex justify-between items-center bg-white/20 dark:bg-white/2">
+              <h3 className="text-xl font-bold uppercase tracking-widest text-sky-600 dark:text-sky-400">
                 Box Office
               </h3>
-              <span className="text-xs font-mono font-bold px-3 py-1 bg-indigo-500/10 text-indigo-650 dark:text-indigo-300 rounded-full">
+              <span className="text-xs font-mono font-bold px-3 py-1 bg-sky-500/10 text-sky-600 dark:text-sky-300 rounded-full">
                 {parseKobisDate(selectedDate.replace(/-/g, ''))}
               </span>
             </div>
@@ -251,11 +323,11 @@ export default function App() {
                       <div className="flex items-center gap-4 w-2/3">
                         <div className="h-10 w-10 bg-slate-300 dark:bg-slate-800 rounded-xl"></div>
                         <div className="space-y-2 w-full">
-                          <div className="h-4 bg-slate-300 dark:bg-slate-800 rounded-sm w-3/4"></div>
-                          <div className="h-3 bg-slate-300 dark:bg-slate-800 rounded-sm w-1/2"></div>
+                          <div className="h-4 bg-slate-150 dark:bg-slate-800 rounded-sm w-3/4"></div>
+                          <div className="h-3 bg-slate-150 dark:bg-slate-800 rounded-sm w-1/2"></div>
                         </div>
                       </div>
-                      <div className="h-6 bg-slate-300 dark:bg-slate-800 rounded-md w-16"></div>
+                      <div className="h-6 bg-slate-150 dark:bg-slate-800 rounded-md w-16"></div>
                     </div>
                   ))}
                 </div>
@@ -266,7 +338,7 @@ export default function App() {
                   <button
                     id="error-retry"
                     onClick={() => fetchBoxOffice(selectedDate)}
-                    className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-full text-xs font-bold hover:bg-indigo-500 shadow-md shadow-indigo-650/15 cursor-pointer"
+                    className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-sky-500 text-white rounded-full text-xs font-bold hover:bg-sky-450 shadow-md shadow-sky-500/15 transition-all cursor-pointer"
                   >
                     다시 검색하기
                   </button>
@@ -291,30 +363,31 @@ export default function App() {
                       initial={{ opacity: 0, y: 12 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.25, delay: index * 0.04 }}
+                      whileHover={{ scale: 1.015, y: -2 }}
                       onClick={() => setSelectedMovieCd(movie.movieCd)}
-                      className={`group relative flex items-center justify-between p-5 rounded-2xl border transition-all cursor-pointer ${
+                      className={`group relative flex items-center justify-between p-5 rounded-2xl border backdrop-blur-md transition-all duration-300 cursor-pointer ${
                         isSelected 
-                          ? 'bg-white/75 dark:bg-white/10 dark:border-white/20 border-indigo-500 ring-2 ring-indigo-500/20' 
-                          : 'bg-white/30 hover:bg-white/60 dark:bg-white/5 dark:hover:bg-white/8 border-transparent hover:border-slate-300 dark:hover:border-white/10'
+                          ? 'bg-white/85 dark:bg-white/15 dark:border-sky-400/50 border-sky-400 ring-4 ring-sky-400/20 shadow-lg shadow-sky-500/10' 
+                          : 'bg-white/35 hover:bg-white/60 dark:bg-white/5 dark:hover:bg-white/10 border-white/30 dark:border-white/5 hover:border-sky-400/30 dark:hover:border-sky-400/30 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.02)]'
                       }`}
                     >
                       {/* Left: Heavy numerical rank + Movie metadata */}
                       <div className="flex items-center gap-4 flex-1 min-w-0">
                         <span className={`text-[2rem] font-black italic mr-2 shrink-0 select-none leading-none tracking-tighter ${
-                          movie.rank === '1' ? 'text-indigo-600 dark:text-indigo-500 opacity-100' :
+                          movie.rank === '1' ? 'text-sky-500 dark:text-sky-400 opacity-100' :
                           movie.rank === '2' ? 'text-slate-600 dark:text-slate-400 opacity-80' :
                           movie.rank === '3' ? 'text-rose-500 dark:text-rose-400 opacity-80' :
-                          'text-slate-400 dark:text-slate-600 opacity-40'
+                          'text-slate-400 dark:text-slate-650 opacity-40'
                         }`}>
                           {movie.rank.padStart(2, '0')}
                         </span>
 
                         <div className="min-w-0">
-                          <h4 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">
+                          <h4 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight group-hover:text-sky-500 dark:group-hover:text-sky-400 transition-colors truncate">
                             {movie.movieNm}
                           </h4>
                           <p className="text-xs text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
-                            <span className="font-semibold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-md text-[10px]">
+                            <span className="font-semibold bg-sky-500/10 text-sky-600 dark:text-sky-300 px-2 py-0.5 rounded-md text-[10px]">
                               개봉 {movie.openDt}
                             </span>
                             <span className="text-slate-400 dark:text-slate-650">•</span>
@@ -345,15 +418,15 @@ export default function App() {
                               <TrendingUp className="h-3 w-3" />{rankInten}
                             </span>
                           ) : rankInten < 0 ? (
-                            <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-full inline-flex items-center gap-0.5">
+                            <span className="text-xs font-bold text-sky-500 dark:text-sky-400 bg-sky-500/10 px-2.5 py-1 rounded-full inline-flex items-center gap-0.5">
                               <TrendingDown className="h-3 w-3" />{Math.abs(rankInten)}
                             </span>
                           ) : (
-                            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-full">-</span>
+                            <span className="text-xs font-bold text-slate-450 dark:text-slate-500 bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-full">-</span>
                           )}
                         </div>
 
-                        <ChevronRight className="h-5 w-5 text-slate-400 dark:text-slate-600 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 translate-x-0 group-hover:translate-x-1 transition-all" />
+                        <ChevronRight className="h-5 w-5 text-slate-400 dark:text-slate-650 group-hover:text-sky-500 dark:group-hover:text-sky-450 translate-x-0 group-hover:translate-x-1 transition-all" />
                       </div>
                     </motion.div>
                   );
@@ -370,9 +443,9 @@ export default function App() {
                   initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.98 }}
-                  className="p-8 text-center bg-white/10 dark:bg-white/5 border border-dashed border-slate-300 dark:border-white/10 rounded-[2rem] flex flex-col items-center justify-center min-h-[480px]"
+                  className="p-8 text-center bg-white/45 dark:bg-white/5 border border-dashed border-slate-300 dark:border-white/20 backdrop-blur-3xl rounded-[2rem] flex flex-col items-center justify-center min-h-[480px] shadow-[0_8px_32px_0_rgba(14,165,233,0.04)]"
                 >
-                  <Award className="h-12 w-12 text-indigo-600/30 dark:text-indigo-500/30 mb-4" />
+                  <Award className="h-12 w-12 text-sky-500/30 dark:text-sky-400/30 mb-4" />
                   <p className="text-slate-700 dark:text-slate-300 font-extrabold text-base">영화 상세 정보</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-[240px] leading-relaxed">
                     왼쪽의 박스오피스 목록에서 영화 제목을 클릭하시면 장르, 상영 시간, 감독 및 상세한 출연진 정보를 CineScope 뷰로 감상하실 수 있습니다.
@@ -384,7 +457,7 @@ export default function App() {
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -16 }}
-                  className="bg-white/40 dark:bg-white/10 border border-slate-200 dark:border-white/20 backdrop-blur-3xl rounded-[2rem] p-8 lg:p-10 overflow-hidden relative"
+                  className="bg-white/50 dark:bg-white/10 border border-white/40 dark:border-white/25 backdrop-blur-3xl rounded-[2rem] p-8 lg:p-10 overflow-hidden relative shadow-[0_12px_40px_0_rgba(14,165,233,0.06)] dark:shadow-[0_12px_45px_0_rgba(0,0,0,0.4)] hover:border-sky-400/30 transition-all duration-300"
                 >
                   {/* Decorative background digits using movie Cd as watermark */}
                   {movieDetail && (
@@ -411,7 +484,7 @@ export default function App() {
                       {loadingDetail ? (
                         <div className="h-6 w-1/3 bg-slate-300 dark:bg-slate-800 rounded-md animate-pulse mb-3"></div>
                       ) : movieDetail ? (
-                        <span className="px-3.5 py-1.5 bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold uppercase tracking-widest rounded-full border border-indigo-500/30">
+                        <span className="px-3.5 py-1.5 bg-sky-500/20 text-sky-700 dark:text-sky-300 text-[10px] font-bold uppercase tracking-widest rounded-full border border-sky-500/30">
                           {movieDetail.typeNm || '장편'} · {movieDetail.statusNm || '개봉'}
                         </span>
                       ) : null}
@@ -443,7 +516,7 @@ export default function App() {
                       </div>
                     ) : detailError ? (
                       <div id="movie-detail-error" className="py-8 text-center bg-rose-500/5 dark:bg-rose-500/10 border border-rose-200/40 dark:border-rose-900/40 rounded-xl">
-                        <p className="text-rose-600 dark:text-rose-400 font-bold text-sm">{detailError}</p>
+                        <p className="text-rose-600 dark:text-rose-450 font-bold text-sm">{detailError}</p>
                         <p className="text-xs text-slate-500 dark:text-slate-450 mt-1">네트워크 통신 중 에러가 발생했습니다.</p>
                       </div>
                     ) : movieDetail ? (
@@ -452,7 +525,7 @@ export default function App() {
                           <div className="space-y-5">
                             {/* Director */}
                             <div>
-                              <h4 className="text-[10px] uppercase tracking-widest text-indigo-700 dark:text-indigo-400 font-extrabold mb-1.5">Director</h4>
+                              <h4 className="text-[10px] uppercase tracking-widest text-sky-600 dark:text-sky-400 font-extrabold mb-1.5">Director</h4>
                               {movieDetail.directors && movieDetail.directors.length > 0 ? (
                                 movieDetail.directors.map(dir => (
                                   <p key={dir.peopleNm} className="text-sm font-bold text-slate-850 dark:text-slate-200">
@@ -466,7 +539,7 @@ export default function App() {
 
                             {/* Cast info with customized chips */}
                             <div>
-                              <h4 className="text-[10px] uppercase tracking-widest text-indigo-700 dark:text-indigo-400 font-extrabold mb-2.5">Cast</h4>
+                              <h4 className="text-[10px] uppercase tracking-widest text-sky-600 dark:text-sky-400 font-extrabold mb-2.5">Cast</h4>
                               {movieDetail.actors && movieDetail.actors.length > 0 ? (
                                 <div className="flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto custom-scrollbar">
                                   {movieDetail.actors.slice(0, 8).map((actor, idx) => (
@@ -482,7 +555,7 @@ export default function App() {
 
                             {/* Standard specifications */}
                             <div>
-                              <h4 className="text-[10px] uppercase tracking-widest text-indigo-700 dark:text-indigo-400 font-extrabold mb-2">Info</h4>
+                              <h4 className="text-[10px] uppercase tracking-widest text-sky-600 dark:text-sky-400 font-extrabold mb-2">Info</h4>
                               <div className="flex gap-4">
                                 <div>
                                   <p className="text-[10px] text-slate-400 font-bold uppercase">개봉일</p>
@@ -506,8 +579,8 @@ export default function App() {
 
                           {/* Extra plots / companies */}
                           <div className="flex flex-col justify-end">
-                            <div className="p-5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs">
-                              <h4 className="text-[10px] uppercase tracking-widest text-indigo-750 dark:text-indigo-300 font-extrabold mb-2.5">
+                            <div className="p-5 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-xs">
+                              <h4 className="text-[10px] uppercase tracking-widest text-sky-700 dark:text-sky-300 font-extrabold mb-2.5">
                                 Metadata & Distribution
                               </h4>
                               
@@ -525,8 +598,8 @@ export default function App() {
                                     <div className="space-y-1 max-h-[80px] overflow-y-auto custom-scrollbar">
                                       {movieDetail.companys.slice(0, 3).map((comp, i) => (
                                         <div key={i} className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                                          <span className="h-1 w-1 bg-indigo-500 rounded-full"></span>
-                                          <p className="font-medium truncate text-[11px]">{comp.companyNm} <span className="text-[9px] text-indigo-600/80 dark:text-indigo-400">({comp.companyPartNm})</span></p>
+                                          <span className="h-1 w-1 bg-sky-500 rounded-full"></span>
+                                          <p className="font-medium truncate text-[11px]">{comp.companyNm} <span className="text-[9px] text-sky-500/80 dark:text-sky-400">({comp.companyPartNm})</span></p>
                                         </div>
                                       ))}
                                     </div>
@@ -534,6 +607,89 @@ export default function App() {
                                 )}
                               </div>
                             </div>
+                          </div>
+                        </div>
+
+                        {/* AI Movie Review Generator */}
+                        <div className="pt-6 border-t border-slate-300/40 dark:border-white/10 space-y-4">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-sky-500 dark:text-sky-400 animate-pulse" />
+                            <h4 className="text-[10px] uppercase tracking-widest text-sky-600 dark:text-sky-400 font-extrabold">
+                              AI Movie Review Generator
+                            </h4>
+                          </div>
+
+                          <div className="space-y-3 p-5 rounded-2xl bg-sky-500/5 border border-sky-500/10 text-xs text-left">
+                            <div className="space-y-1">
+                              <p className="text-[10px] text-slate-450 dark:text-slate-400 font-bold uppercase">감상평 키워드 입력 (최대 3개)</p>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                                기억에 남거나 포함하고 싶은 키워드들을 입력해 보세요. AI가 자연스럽게 해당 키워드들을 포함하여 품격 있는 감상평을 작성해 드립니다.
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2">
+                              {keywords.map((kw, i) => (
+                                <input
+                                  key={i}
+                                  type="text"
+                                  placeholder={`키워드 ${i + 1}`}
+                                  value={kw}
+                                  onChange={(e) => handleKeywordChange(i, e.target.value)}
+                                  className="px-3 py-2 text-xs rounded-xl bg-white/75 dark:bg-slate-900/40 border border-slate-200 dark:border-white/10 focus:outline-none focus:border-sky-500 dark:focus:border-sky-450 text-slate-800 dark:text-white placeholder-slate-450 dark:placeholder-slate-500 transition-all font-semibold"
+                                />
+                              ))}
+                            </div>
+
+                            <button
+                              id="btn-generate-ai-review"
+                              onClick={handleGenerateReview}
+                              disabled={generatingReview || !keywords.some(k => k.trim())}
+                              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 disabled:bg-slate-300 dark:disabled:bg-white/5 disabled:cursor-not-allowed text-white text-xs font-extrabold shadow-xs hover:shadow-sm transition-all duration-300 cursor-pointer"
+                            >
+                              {generatingReview ? (
+                                <>
+                                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                  감상평 작성하는 중...
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="h-3.5 w-3.5" />
+                                  AI 감상평 생성하기
+                                </>
+                              )}
+                            </button>
+
+                            {reviewError && (
+                              <p className="text-rose-500 dark:text-rose-450 text-[11px] font-semibold mt-1">
+                                {reviewError}
+                              </p>
+                            )}
+
+                            <AnimatePresence mode="wait">
+                              {generatedReview && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 8 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -8 }}
+                                  className="p-4 rounded-xl bg-white/80 dark:bg-slate-900/60 border border-slate-250/60 dark:border-white/10 relative group shadow-xs mt-2"
+                                >
+                                  <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed font-semibold pr-8 whitespace-pre-wrap">
+                                    "{generatedReview}"
+                                  </p>
+                                  <button
+                                    onClick={handleCopyReview}
+                                    className="absolute top-3.5 right-3.5 p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-white/10 cursor-pointer shadow-xs active:scale-95 transition-all text-xs"
+                                    title="감상평 복사"
+                                  >
+                                    {copied ? (
+                                      <Check className="h-3.5 w-3.5 text-emerald-500" />
+                                    ) : (
+                                      <Copy className="h-3.5 w-3.5" />
+                                    )}
+                                  </button>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
                           </div>
                         </div>
 
