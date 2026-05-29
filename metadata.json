@@ -1,0 +1,6 @@
+{
+  "name": "KOBIS Box Office",
+  "description": "Korean Film Council Daily Box Office Explorer. Select a date to view rankings, and click any item to see detailed movie information in light or dark mode.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
