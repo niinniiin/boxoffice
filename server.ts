@@ -251,15 +251,17 @@ function getFallbackMovieDetail(movieCd: string) {
 
 async function fetchFromKobis(endpoint: string, queryParams: Record<string, string>): Promise<any> {
   const bases = [
-    'http://www.kobis.or.kr/kobisopenapi/webservice/rest',
     'https://www.kobis.or.kr/kobisopenapi/webservice/rest',
-    'http://kobis.or.kr/kobisopenapi/webservice/rest'
+    'http://www.kobis.or.kr/kobisopenapi/webservice/rest'
   ];
 
   let lastError: any = new Error('No keys or base URLs evaluated');
 
   for (const key of KOBIS_KEYS) {
     for (const base of bases) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1200); // 1.2s timeout per request
+
       try {
         const query = new URLSearchParams({ ...queryParams, key }).toString();
         const url = `${base}/${endpoint}?${query}`;
@@ -267,10 +269,13 @@ async function fetchFromKobis(endpoint: string, queryParams: Record<string, stri
         console.log(`[Proxy] Requesting: ${base}/${endpoint} with key starting in "...${key.slice(-5)}"`);
 
         const response = await fetch(url, {
+          signal: controller.signal,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           }
         });
+
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
           throw new Error(`HTTP raw error ${response.status}`);
@@ -286,8 +291,19 @@ async function fetchFromKobis(endpoint: string, queryParams: Record<string, stri
         // Return first successful result
         return data;
       } catch (err: any) {
+        clearTimeout(timeoutId);
+        const isTimeout = err.name === 'AbortError' || err.message?.toLowerCase().includes('timeout') || err.message?.toLowerCase().includes('aborted');
+        const isNetworkError = err.message?.toLowerCase().includes('fetch') || err.message?.toLowerCase().includes('econnrefused') || err.message?.toLowerCase().includes('connect');
+        
         console.warn(`[Proxy Warning] Failed with base ${base} and key "...${key.slice(-5)}": ${err.message}`);
         lastError = err;
+
+        // If it is a network error or connection timeout, Vercel/Cloud IP is likely geoblocked or offline.
+        // We MUST fail-fast immediately so the serverless function doesn't hang and exceed Vercel's execution limits.
+        if (isTimeout || isNetworkError) {
+          console.error(`[Fast Fail] Core network/timeout block detected (${err.message}). Aborting retry loop.`);
+          throw err;
+        }
       }
     }
   }
