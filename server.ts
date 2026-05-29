@@ -10,7 +10,61 @@ const PORT = 3000;
 
 app.use(express.json());
 
-const apiKey = process.env.KOBIS_API_KEY || 'ea6264853575a7b3188c9076441a7562';
+// List of available public/fallback keys for KOBIS API in case of limit exhaustion or invalidity
+const KOBIS_KEYS = [
+  process.env.KOBIS_API_KEY,
+  'ea6264853575a7b3188c9076441a7562',
+  'f5eef1421e602e087ec7dbbf0f1ec360',
+  '430a5e21101a74ae3e51f33f5f66ff2f',
+  'f2095effb06b0098df241ddcb6db4b6e',
+  'df53c4314782bb6bf6b9b3f3f01c901e'
+].filter(Boolean) as string[];
+
+async function fetchFromKobis(endpoint: string, queryParams: Record<string, string>): Promise<any> {
+  const bases = [
+    'http://www.kobis.or.kr/kobisopenapi/webservice/rest',
+    'https://www.kobis.or.kr/kobisopenapi/webservice/rest',
+    'http://kobis.or.kr/kobisopenapi/webservice/rest'
+  ];
+
+  let lastError: any = new Error('No keys or base URLs evaluated');
+
+  for (const key of KOBIS_KEYS) {
+    for (const base of bases) {
+      try {
+        const query = new URLSearchParams({ ...queryParams, key }).toString();
+        const url = `${base}/${endpoint}?${query}`;
+        
+        console.log(`[Proxy] Requesting: ${base}/${endpoint} with key starting in "...${key.slice(-5)}"`);
+
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP raw error ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Check if KOBIS returned a rate limit or credential error (faultInfo)
+        if (data && data.faultInfo) {
+          throw new Error(`KOBIS fault [${data.faultInfo.errorCode}]: ${data.faultInfo.message}`);
+        }
+
+        // Return first successful result
+        return data;
+      } catch (err: any) {
+        console.warn(`[Proxy Warning] Failed with base ${base} and key "...${key.slice(-5)}": ${err.message}`);
+        lastError = err;
+      }
+    }
+  }
+
+  throw lastError;
+}
 
 // API Route: Daily Box Office
 app.get('/api/boxoffice', async (req, res) => {
@@ -21,12 +75,7 @@ app.get('/api/boxoffice', async (req, res) => {
     }
 
     console.log(`[Proxy] Fetching Daily Box Office for date: ${date}`);
-    const url = `http://kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json?key=${apiKey}&targetDt=${date}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`KOBIS API returned status ${response.status}`);
-    }
-    const data = await response.json();
+    const data = await fetchFromKobis('boxoffice/searchDailyBoxOfficeList.json', { targetDt: date });
     res.json(data);
   } catch (error: any) {
     console.error('Error fetching box office:', error);
@@ -43,12 +92,7 @@ app.get('/api/movie', async (req, res) => {
     }
 
     console.log(`[Proxy] Fetching Movie Details for box office movie CD: ${movieCd}`);
-    const url = `http://www.kobis.or.kr/kobisopenapi/webservice/rest/movie/searchMovieInfo.json?key=${apiKey}&movieCd=${movieCd}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`KOBIS API returned status ${response.status}`);
-    }
-    const data = await response.json();
+    const data = await fetchFromKobis('movie/searchMovieInfo.json', { movieCd });
     res.json(data);
   } catch (error: any) {
     console.error('Error fetching movie details:', error);
