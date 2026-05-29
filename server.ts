@@ -19,7 +19,7 @@ const KOBIS_KEYS = [
   '430a5e21101a74ae3e51f33f5f66ff2f',
   'f2095effb06b0098df241ddcb6db4b6e',
   'df53c4314782bb6bf6b9b3f3f01c901e'
-].filter(Boolean) as string[];
+].filter(key => key && typeof key === 'string' && key.trim() !== '' && key.toLowerCase() !== 'undefined' && key.toLowerCase() !== 'null') as string[];
 
 // High-fidelity local fallback movie dataset for graceful degradation (e.g. when Vercel serverless IPs are geoblocked by KOBIS)
 const FALLBACK_MOVIES = [
@@ -382,10 +382,19 @@ app.post('/api/review/generate', async (req, res) => {
   }
 });
 
+// Detect serverless environment (Vercel, AWS Lambda, Netlify, etc.)
+const isServerless = !!(
+  process.env.VERCEL || 
+  process.env.VERCEL_ENV || 
+  process.env.NOW_REGION || 
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.LAMBDA_TASK_ROOT
+);
+
 // Serve static assets / Vite middleware
 async function setupViteAndListen() {
-  if (process.env.VERCEL) {
-    console.log('[Server] Warm boot on Vercel. Exporting app for serverless handler without listening.');
+  if (isServerless) {
+    console.log('[Server] Serverless environment detected. Skipping local dev/prod server listener.');
     return;
   }
 
