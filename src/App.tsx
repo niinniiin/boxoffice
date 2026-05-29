@@ -17,7 +17,8 @@ import {
   RefreshCw,
   Sparkles,
   Copy,
-  Check
+  Check,
+  AlertTriangle
 } from 'lucide-react';
 import { DailyBoxOffice, MovieDetail } from './types';
 
@@ -44,6 +45,7 @@ export default function App() {
   const [boxOfficeList, setBoxOfficeList] = useState<DailyBoxOffice[]>([]);
   const [loadingList, setLoadingList] = useState<boolean>(false);
   const [listError, setListError] = useState<string | null>(null);
+  const [isFallbackMode, setIsFallbackMode] = useState<boolean>(false);
 
   // Selected movie for detail panel
   const [selectedMovieCd, setSelectedMovieCd] = useState<string | null>(null);
@@ -76,6 +78,7 @@ export default function App() {
   const fetchBoxOffice = async (dateStr: string) => {
     setLoadingList(true);
     setListError(null);
+    setIsFallbackMode(false);
     try {
       const apiDate = dateStr.replace(/-/g, ''); // Convert YYYY-MM-DD to YYYYMMDD
       const response = await fetch(`/api/boxoffice?date=${apiDate}`);
@@ -83,6 +86,8 @@ export default function App() {
         throw new Error(`박스오피스 데이터를 불러오는데 실패했습니다. (HTTP ${response.status})`);
       }
       const data = await response.json();
+      
+      setIsFallbackMode(!!data.isFallback);
       
       if (data.boxOfficeResult?.dailyBoxOfficeList) {
         setBoxOfficeList(data.boxOfficeResult.dailyBoxOfficeList);
@@ -315,6 +320,21 @@ export default function App() {
             </div>
 
             <div className="p-4 space-y-3.5 max-h-[700px] overflow-y-auto custom-scrollbar">
+              {/* Fallback Warning Card */}
+              {isFallbackMode && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-start gap-3 p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-400 leading-relaxed text-left"
+                >
+                  <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5 animate-pulse" />
+                  <div>
+                    <p className="font-bold">백업 데이터 우회 로딩 활성화</p>
+                    <p className="text-[11px] opacity-90 mt-0.5">Vercel 등 해외 도메인에 대한 KOBIS OpenAPI 방화벽 연동 지연으로 인해 로컬 실시간 샌드박스로 안전히 우회되었습니다. 모든 장르 상세 정보 열람 및 AI 리뷰 생성을 정상 이용할 수 있습니다.</p>
+                  </div>
+                </motion.div>
+              )}
+
               {/* Error or Loading states */}
               {loadingList ? (
                 <div className="space-y-3">
